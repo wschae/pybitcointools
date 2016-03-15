@@ -123,7 +123,7 @@ class TestTransactionSignVerify(unittest.TestCase):
 
     def test_all(self):
         alphabet = "1234567890qwertyuiopasdfghjklzxcvbnm"
-        for i in range(10):
+        for _ in range(10):
             msg = ''.join([random.choice(alphabet) for i in range(random.randrange(20, 200))])
             priv = sha256(str(random.randrange(2**256)))
             pub = privtopub(priv)
