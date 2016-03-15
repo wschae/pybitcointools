@@ -161,11 +161,13 @@ def der_encode_sig(v, r, s):
     return '30'+encode(len(left+right)//2, 16, 2)+left+right
 
 def der_decode_sig(sig):
-    leftlen = decode(sig[6:8], 16)*2
+    leftlenbytes = decode(sig[6:8], 16)
+    leftlen = leftlenbytes*2
     left = sig[8:8+leftlen]
-    rightlen = decode(sig[10+leftlen:12+leftlen], 16)*2
+    rightlenbytes = decode(sig[10+leftlen:12+leftlen], 16)
+    rightlen = rightlenbytes*2
     right = sig[12+leftlen:12+leftlen+rightlen]
-    return (None, decode(left, 16), decode(right, 16))
+    return (leftlenbytes, decode(left, 16), rightlenbytes, decode(right, 16))
 
 def is_bip66(sig):
     """Checks hex DER sig for BIP66 consistency"""
@@ -218,7 +220,7 @@ def ecdsa_tx_verify(tx, sig, pub, hashcode=SIGHASH_ALL):
 
 def ecdsa_tx_recover(tx, sig, hashcode=SIGHASH_ALL):
     z = bin_txhash(tx, hashcode)
-    _, r, s = der_decode_sig(sig)
+    rlen, r, slen, s = der_decode_sig(sig)
     left = ecdsa_raw_recover(z, (0, r, s))
     right = ecdsa_raw_recover(z, (1, r, s))
     return (encode_pubkey(left, 'hex'), encode_pubkey(right, 'hex'))

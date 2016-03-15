@@ -376,7 +376,7 @@ def dbl_sha256(string):
 def bin_slowsha(string):
     string = from_string_to_bytes(string)
     orig_input = string
-    for i in range(100000):
+    for _ in range(100000):
         string = hashlib.sha256(string + orig_input).digest()
     return string
 
@@ -525,8 +525,10 @@ def ecdsa_sign(msg, priv):
 
 
 def ecdsa_raw_verify(msghash, vrs, pub):
-    v, r, s = vrs
-    if not (27 <= v <= 34):
+    vr, r, vs, s = vrs
+    if not (27 <= vr <= 34):
+        return False
+    if not (27 <= vs <= 34):
         return False
 
     w = inv(s, N)
@@ -553,8 +555,7 @@ def ecdsa_verify(msg, sig, pub):
 
 def ecdsa_raw_recover(msghash, vrs):
     v, r, s = vrs
-    if not (27 <= v <= 34):
-        raise ValueError("%d must in range 27-31" % v)
+
     x = r
     xcubedaxb = (x*x*x+A*x+B) % P
     beta = pow(xcubedaxb, (P+1)//4, P)
