@@ -144,7 +144,11 @@ def blockr_unspent(*args):
     else:
         addrs = addr_args
     res = make_request(blockr_url+','.join(addrs))
-    data = json.loads(res.decode("utf-8"))['data']
+    try:
+        data = json.loads(res.decode('utf-8'))['data']
+    except:
+        data = json.loads(res)['data']
+
     o = []
     if 'unspent' in data:
         data = [data]
