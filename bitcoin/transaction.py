@@ -150,6 +150,15 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
 # Making the actual signatures
 
 
+def encode_num(n):
+    h = binascii.hexlify(encode(n,256))
+    b = binascii.unhexlify(h)
+    if ord(b[0]) < 0x80:
+        return h
+    else:
+        return '00' + h
+
+
 def der_encode_sig(v, r, s):
     b1, b2 = safe_hexlify(encode(r, 256)), safe_hexlify(encode(s, 256))
     if len(b1) and b1[0] in '89abcdef':
