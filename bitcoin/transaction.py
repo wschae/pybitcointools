@@ -5,6 +5,7 @@ from _functools import reduce
 from bitcoin.main import *
 from bitcoin import safe_hexlify, from_int_to_byte, from_string_to_bytes
 
+
 ### Hex to bin converter and vice versa for objects
 
 

@@ -373,7 +373,7 @@ def RMD160Transform(state, block): #uint32 state[5], uchar block[64]
 
 
 def RMD160Update(ctx, inp, inplen):
-    if type(inp) == str:
+    if isinstance(inp, str):
         inp = [ord(i)&0xff for i in inp]
     
     have = int((ctx.count // 8) % 64)
