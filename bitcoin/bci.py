@@ -2,6 +2,9 @@
 import json, re
 import random
 import sys
+import binascii
+from bitcoin import safe_hexlify
+
 try:
     from urllib.request import build_opener
 except:
@@ -27,7 +30,7 @@ def is_testnet(inp):
     '''Checks if inp is a testnet address or if UTXO is a known testnet TxID''' 
     if isinstance(inp, (list, tuple)) and len(inp) >= 1:
         return any([is_testnet(x) for x in inp])
-    elif not isinstance(inp, basestring):    # sanity check
+    elif not isinstance(inp, str):    # sanity check
         raise TypeError("Input must be str/unicode, not type %s" % str(type(inp)))
 
     if not inp or (inp.lower() in ("btc", "testnet")): 
@@ -66,7 +69,7 @@ def set_network(*args):
     for arg in args:
         if not arg: 
             pass
-        if isinstance(arg, basestring):
+        if isinstance(arg, str):
             r.append(is_testnet(arg))
         elif isinstance(arg, (list, tuple)):
             return set_network(*arg)
@@ -108,16 +111,13 @@ def bci_unspent(*args):
                 continue
             else:
                 raise Exception(e)
-        try:
-            jsonobj = json.loads(data.decode("utf-8"))
-            for o in jsonobj["unspent_outputs"]:
-                h = o['tx_hash'].decode('hex')[::-1].encode('hex')
-                u.append({
-                    "output": h+':'+str(o['tx_output_n']),
-                    "value": o['value']
-                })
-        except:
-            raise Exception("Failed to decode data: "+data)
+        jsonobj = json.loads(data.decode("utf-8"))
+        for o in jsonobj["unspent_outputs"]:
+            h = safe_hexlify(binascii.unhexlify(o['tx_hash'])[::-1])
+            u.append({
+                "output": h+':'+str(o['tx_output_n']),
+                "value": o['value']
+            })
     return u
 
 
