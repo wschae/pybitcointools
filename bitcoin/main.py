@@ -12,6 +12,16 @@ import random
 import hmac
 from bitcoin.ripemd import *
 
+# Hashing transactions for signing
+
+SIGHASH_ALL = 0x00000001
+SIGHASH_NONE = 0x00000002
+SIGHASH_SINGLE = 0x00000003
+# this works like SIGHASH_ANYONECANPAY | SIGHASH_ALL, might as well make it explicit while
+# we fix the constant
+SIGHASH_ANYONECANPAY = 0x00000080
+
+
 # Elliptic curve parameters (secp256k1)
 
 P = 2**256 - 2**32 - 977
@@ -580,3 +590,5 @@ def ecdsa_recover(msg, sig):
     v,r,s = decode_sig(sig)
     Q = ecdsa_raw_recover(electrum_sig_hash(msg), (v,r,s))
     return encode_pubkey(Q, 'hex_compressed') if v >= 31 else encode_pubkey(Q, 'hex')
+
+# TODO Full Transaction verification (ECC - Segregated Witness form [secp256k1])

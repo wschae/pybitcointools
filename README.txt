@@ -1,5 +1,10 @@
 # Pybitcointools, Python library for Bitcoin signatures and transactions
 
+###
+
+Tests: 
+$ python -m unittest test
+
 ### Advantages:
 
 * Functions have a simple interface, inputting and outputting in standard formats
@@ -126,7 +131,7 @@ Fun stuff with json:
 * multisign            : (tx, i, script, privkey) -> signature
 * apply_multisignatures: (tx, i, script, sigs) -> tx with index i signed with sigs
 * scriptaddr           : (script) -> P2SH address
-* mk_multisig_script   : (pubkeys, k, n) -> k-of-n multisig script from pubkeys
+* mk_multisig_script   : (pubkeys, k) -> k-of-n multisig script from pubkeys
 * verify_tx_input      : (tx, i, script, sig, pub) -> True/False
 * tx_hash              : (hex or bin tx) -> hash
 

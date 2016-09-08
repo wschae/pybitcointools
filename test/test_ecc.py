@@ -1,11 +1,5 @@
-import json
-import os
-import random
 import unittest
-
-import bitcoin.ripemd as ripemd
 from bitcoin import *
-
 
 class TestECCArithmetic(unittest.TestCase):
 
@@ -144,8 +138,9 @@ class TestSerialize(unittest.TestCase):
 
     def test_serialize(self):
         tx = '0100000001239f932c780e517015842f3b02ff765fba97f9f63f9f1bc718b686a56ed9c73400000000fd5d010047304402200c40fa58d3f6d5537a343cf9c8d13bc7470baf1d13867e0de3e535cd6b4354c802200f2b48f67494835b060d0b2ff85657d2ba2d9ea4e697888c8cb580e8658183a801483045022056f488c59849a4259e7cef70fe5d6d53a4bd1c59a195b0577bd81cb76044beca022100a735b319fa66af7b178fc719b93f905961ef4d4446deca8757a90de2106dd98a014cc95241046c7d87fd72caeab48e937f2feca9e9a4bd77f0eff4ebb2dbbb9855c023e334e188d32aaec4632ea4cbc575c037d8101aec73d029236e7b1c2380f3e4ad7edced41046fd41cddf3bbda33a240b417a825cc46555949917c7ccf64c59f42fd8dfe95f34fae3b09ed279c8c5b3530510e8cca6230791102eef9961d895e8db54af0563c410488d618b988efd2511fc1f9c03f11c210808852b07fe46128c1a6b1155aa22cdf4b6802460ba593db2d11c7e6cbe19cedef76b7bcabd05d26fd97f4c5a59b225053aeffffffff0310270000000000001976a914a89733100315c37d228a529853af341a9d290a4588ac409c00000000000017a9142b56f9a4009d9ff99b8f97bea4455cd71135f5dd87409c00000000000017a9142b56f9a4009d9ff99b8f97bea4455cd71135f5dd8700000000'
+        reserialized = serialize(deserialize(tx))
         self.assertEqual(
-            serialize(deserialize(tx)),
+            reserialized,
             tx,
             "Serialize roundtrip failed"
         )
@@ -184,7 +179,6 @@ class TestTransaction(unittest.TestCase):
         self.assertTrue(verify_tx_input(tx1, 0, mscript, sig3, pubs[3]), "Verification Error")
 
         tx2 = apply_multisignatures(tx1, 0, mscript, [sig1, sig3])
-        print("Outputting transaction: ", tx2)
 
     # https://github.com/vbuterin/pybitcointools/issues/71
     def test_multisig(self):
@@ -449,7 +443,8 @@ class TestScriptVsAddressOutputs(unittest.TestCase):
         ]
 
         for outs in outputs:
-            tx_struct = deserialize(mktx(inputs, outs))
+            mtx = mktx(inputs, outs)
+            tx_struct = deserialize(mtx)
             self.assertEqual(tx_struct['outs'], outputs[3])
 
 
@@ -509,6 +504,7 @@ class TestDerEncoding(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         print('Starting der encoding tests')
+        print('Running test, python version: {}'.format(sys.version))
 
     def test_all(self):
         data = [
@@ -518,7 +514,8 @@ class TestDerEncoding(unittest.TestCase):
             [2**255, '304602210080000000000000000000000000000000000000000000000000000000000000000221008000000000000000000000000000000000000000000000000000000000000000']
         ]
         for n, sig in data:
-            self.assertEqual(der_encode_sig(0, n, n), sig)
+            decoded = der_encode_sig(0, n, n)
+            self.assertEqual(decoded, sig)
 
 
 if __name__ == '__main__':

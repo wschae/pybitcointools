@@ -8,7 +8,6 @@ wordlist_english=list(open(os.path.join(os.path.dirname(os.path.realpath(__file_
 
 def eint_to_bytes(entint,entbits):
 	a=hex(entint)[2:].rstrip('L').zfill(32)
-	print(a)
 	return binascii.unhexlify(a)
 
 def mnemonic_int_to_words(mint,mint_num_words,wordlist=wordlist_english):

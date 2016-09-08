@@ -1,4 +1,6 @@
-import sys, os
+import sys
+import os
+import re
 import binascii
 import hashlib
 
@@ -117,3 +119,6 @@ if sys.version_info.major == 3:
 
     def random_string(x):
         return str(os.urandom(x))
+
+    def is_hexilified(tx):
+        return isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx)

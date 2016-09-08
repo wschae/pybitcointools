@@ -1,11 +1,8 @@
 #!/usr/bin/python
-import copy
 from _functools import reduce
 
+import copy
 from bitcoin.main import *
-from bitcoin import safe_hexlify, from_int_to_byte, from_string_to_bytes
-
-
 ### Hex to bin converter and vice versa for objects
 
 
@@ -44,9 +41,8 @@ def json_changebase(obj, changer):
 
 # Transaction serialization and deserialization
 
-
 def deserialize(tx):
-    if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
+    if is_hexilified(tx):
         #tx = bytes(bytearray.fromhex(tx))
         return json_changebase(deserialize(binascii.unhexlify(tx)),
                               lambda x: safe_hexlify(x))
@@ -78,6 +74,14 @@ def deserialize(tx):
     obj = {"ins": [], "outs": []}
     obj["version"] = read_as_int(4)
     ins = read_var_int()
+
+    " begin segwit "
+    segwit_flag = False
+    if not ins:
+        segwit_flag = read_var_int()
+        ins = read_var_int()
+    " end segwit "
+
     for i in range(ins):
         obj["ins"].append({
             "outpoint": {
@@ -93,50 +97,82 @@ def deserialize(tx):
             "value": read_as_int(8),
             "script": read_var_string()
         })
+    if segwit_flag:
+        obj["segwit"] = True
+        for i in range(ins):
+            howmany = read_var_int()
+            if howmany:
+                obj['ins'][i]['txinwitness'] = [read_var_string() for x in range(0, howmany)]
+
     obj["locktime"] = read_as_int(4)
     return obj
 
+
 def serialize(txobj):
-    #if isinstance(txobj, bytes):
-    #    txobj = bytes_to_hex_string(txobj)
+    SEGWIT_MARKER = b'\x00'
+    SEGWIT_FLAG = b'\x01'
     o = []
     if json_is_base(txobj, 16):
         json_changedbase = json_changebase(txobj, lambda x: binascii.unhexlify(x))
-        hexlified = safe_hexlify(serialize(json_changedbase))
-        return hexlified
+        return str(binascii.hexlify(serialize(json_changedbase)).decode())
     o.append(encode(txobj["version"], 256, 4)[::-1])
+
+    " begin segwit "
+    segwit = txobj.get('segwit', False)
+    " end segwit "
+
     o.append(num_to_var_int(len(txobj["ins"])))
     for inp in txobj["ins"]:
+        inp['script'] = inp.get('script', '')
+        " begin segwit "
+        segwit = bool(inp.get("txinwitness") != None) if not segwit else segwit
+        " end segwit "
         o.append(inp["outpoint"]["hash"][::-1])
         o.append(encode(inp["outpoint"]["index"], 256, 4)[::-1])
-        o.append(num_to_var_int(len(inp["script"]))+(inp["script"] if inp["script"] or is_python2 else bytes()))
-        o.append(encode(inp["sequence"], 256, 4)[::-1])
+        out_len = num_to_var_int(len(inp["script"]))
+        script = inp['script'] if inp.get('script') else b''
+        o.append(out_len + script)
+        o.append(encode(inp.get('sequence', 4294967295), 256, 4)[::-1])
     o.append(num_to_var_int(len(txobj["outs"])))
     for out in txobj["outs"]:
+        out['script'] = out['script']
         o.append(encode(out["value"], 256, 8)[::-1])
         o.append(num_to_var_int(len(out["script"]))+out["script"])
+
+    " begin segwit "
+    if segwit:
+        o.insert(1, SEGWIT_MARKER + SEGWIT_FLAG)
+        for inp in txobj["ins"]:
+            if not isinstance(inp.get('txinwitness', None), list):
+                o.append(num_to_var_int(0))
+            else:
+                if len(inp.get('txinwitness')):
+                    o.append(num_to_var_int(len(inp.get('txinwitness'))))
+                    for i in inp.get('txinwitness'):
+                        o.append(num_to_var_int(len(i)))
+                        if i:
+                            o.append(i)
+                else:
+                    o.append(num_to_var_int(2))
+                    o.append(num_to_var_int(0) * 2)
+
+    " end segwit "
+
     o.append(encode(txobj["locktime"], 256, 4)[::-1])
-
-    return ''.join(o) if is_python2 else reduce(lambda x,y: x+y, o, bytes())
-
-# Hashing transactions for signing
-
-SIGHASH_ALL = 1
-SIGHASH_NONE = 2
-SIGHASH_SINGLE = 3
-# this works like SIGHASH_ANYONECANPAY | SIGHASH_ALL, might as well make it explicit while
-# we fix the constant
-SIGHASH_ANYONECANPAY = 0x81
+    return b''.join(o)
 
 
 def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
     i, hashcode = int(i), int(hashcode)
     if isinstance(tx, string_or_bytes_types):
-        return serialize(signature_form(deserialize(tx), i, script, hashcode))
+        sform = signature_form(deserialize(tx), i, script, hashcode)
+        return serialize(sform)
+
     newtx = copy.deepcopy(tx)
     for inp in newtx["ins"]:
-        inp["script"] = ""
+        inp["script"] =  ""
     newtx["ins"][i]["script"] = script
+
     if hashcode == SIGHASH_NONE:
         newtx["outs"] = []
     elif hashcode == SIGHASH_SINGLE:
@@ -150,6 +186,7 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
         pass
     return newtx
 
+
 # Making the actual signatures
 
 
@@ -160,7 +197,6 @@ def encode_num(n):
         return h
     else:
         return '00' + h
-
 
 def der_encode_sig(v, r, s):
     b1, b2 = safe_hexlify(encode(r, 256)), safe_hexlify(encode(s, 256))
@@ -189,7 +225,7 @@ def is_bip66(sig):
     if (sig[0] == 0x30) and (sig[1] == len(sig)-2):     # check if sighash is missing
             sig.extend(b"\1")		                   	# add SIGHASH_ALL for testing
     #assert (sig[-1] & 124 == 0) and (not not sig[-1]), "Bad SIGHASH value"
-    
+
     if len(sig) < 9 or len(sig) > 73: return False
     if (sig[0] != 0x30): return False
     if (sig[1] != len(sig)-3): return False
@@ -349,9 +385,59 @@ else:
         return result
 
 
+def mk_OPCS_multisig_script(form):
+    script = []
+    OP_CODESEPARATOR = from_int_to_byte(0xAB)
+    OP_CHECKSIG = from_int_to_byte(0xAC)
+    OP_CHECKSIGVERIFY = from_int_to_byte(0xAD)
+    OP_CHECKMULTISIG = from_int_to_byte(0xAE)
+    OP_CHECKMULTISIGVERIFY = from_int_to_byte(0xAF)
+    """
+    uses OP_CODESEPARATOR to build the multisig redeem script
+    form:
+
+    {
+    'keys': ['hex_pubkey_1',
+             'hex_pubkey_2',
+             'hex_pubkey_3'
+    'schema': [
+            {
+                'reqs': 1,
+                'keys': [0],
+            },
+            {
+                'reqs': 1,
+                'keys': [1, 2],
+            }
+        ]
+    }
+
+    """
+    for i, s in enumerate(form['schema']):
+        subscript = []
+        for k in s['keys']:
+            subscript.append(from_int_to_byte(len(form['keys'][k]) // 2))
+            subscript.append(safe_from_hex(form['keys'][k]))
+        if len(s['keys']) == 1:
+            subscript.append(OP_CHECKSIG if i == len(s) -1 else OP_CHECKSIGVERIFY)
+        elif len(s['keys']) > 1:
+            subscript.insert(from_int_to_byte(s['reqs']), 0)
+            subscript.insert(from_int_to_byte(len(s['keys'])), len(s['keys']) + 1)
+            subscript.append(OP_CHECKMULTISIG if i == len(s) -1 else OP_CHECKMULTISIGVERIFY)
+        else:
+            raise ValueError('no keys condition')
+        if i != len(s) - 1:
+            subscript.append(OP_CODESEPARATOR)
+        script = script + subscript
+    res = binascii.hexlify(b''.join(script)).decode('ascii')
+    return res
+
+
 def mk_multisig_script(*args):  # [pubs],k or pub1,pub2...pub[n],k
     if isinstance(args[0], list):
         pubs, k = args[0], int(args[1])
+    elif len(args) == 1 and isinstance(args[0], dict):
+        return mk_OPCS_multisig_script(args[0])
     else:
         pubs = list(filter(lambda x: len(str(x)) >= 32, args))
         k = int(args[len(pubs)])
@@ -374,7 +460,8 @@ def verify_tx_input(tx, i, script, sig, pub):
 
 def sign(tx, i, priv, hashcode=SIGHASH_ALL):
     i = int(i)
-    if (not is_python2 and isinstance(re, bytes)) or not re.match('^[0-9a-fA-F]*$', tx):
+    txobj = tx if isinstance(tx, dict) else deserialize(tx)
+    if not isinstance(tx, dict) and ((not is_python2 and isinstance(re, bytes)) or not re.match('^[0-9a-fA-F]*$', tx)):
         return binascii.unhexlify(sign(safe_hexlify(tx), i, priv))
     if len(priv) <= 33:
         priv = safe_hexlify(priv)
@@ -382,8 +469,20 @@ def sign(tx, i, priv, hashcode=SIGHASH_ALL):
     address = pubkey_to_address(pub)
     signing_tx = signature_form(tx, i, mk_pubkey_script(address), hashcode)
     sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
-    txobj = deserialize(tx)
-    txobj["ins"][i]["script"] = serialize_script([sig, pub])
+    txobj["ins"][i]['script'] = serialize_script([sig, pub])
+    return serialize(txobj)
+
+def p2pk_sign(tx, i, priv, hashcode=SIGHASH_ALL):
+    i = int(i)
+    txobj = tx if isinstance(tx, dict) else deserialize(tx)
+    if not isinstance(tx, dict) and ((not is_python2 and isinstance(re, bytes)) or not re.match('^[0-9a-fA-F]*$', tx)):
+        return binascii.unhexlify(sign(safe_hexlify(tx), i, priv))
+    if len(priv) <= 33:
+        priv = safe_hexlify(priv)
+    pub = privkey_to_pubkey(priv)
+    signing_tx = signature_form(tx, i, '21' + pub + 'ac', hashcode)
+    sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
+    txobj["ins"][i]['script'] = serialize_script([sig])
     return serialize(txobj)
 
 
@@ -409,32 +508,13 @@ def multisign(tx, i, script, pk, hashcode=SIGHASH_ALL):
     return ecdsa_tx_sign(modtx, pk, hashcode)
 
 
-def apply_multisignatures(*args):
-    # tx,i,script,sigs OR tx,i,script,sig1,sig2...,sig[n]
-    tx, i, script = args[0], int(args[1]), args[2]
-    sigs = args[3] if isinstance(args[3], list) else list(args[3:])
-
-    if isinstance(script, str) and re.match('^[0-9a-fA-F]*$', script):
-        script = binascii.unhexlify(script)
-    sigs = [binascii.unhexlify(x) if x[:2] == '30' else x for x in sigs]
-    if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
-        return safe_hexlify(apply_multisignatures(binascii.unhexlify(tx), i, script, sigs))
-
-    # Not pushing empty elements on the top of the stack if passing no
-    # script (in case of bare multisig inputs there is no script)
-    script_blob = [] if script.__len__() == 0 else [script]
-
-    txobj = deserialize(tx)
-    txobj["ins"][i]["script"] = serialize_script([None]+sigs+script_blob)
-    return serialize(txobj)
-
-
 def is_inp(arg):
     return len(arg) > 64 or "output" in arg or "outpoint" in arg
 
 
 def mktx(*args, **kwargs):
     # [in0, in1...],[out0, out1...] or in0, in1 ... out0 out1 ...
+    ser = kwargs.get('serialize', True)
     ins, outs = [], []
     for arg in args:
         if isinstance(arg, list):
@@ -444,6 +524,12 @@ def mktx(*args, **kwargs):
 
     txobj = {"locktime": kwargs.get('locktime', 0), "version": 1, "ins": [], "outs": []}
     for i in ins:
+
+        " begin segwit "
+        seg_input = isinstance(i, dict) and i.get('segregated')
+        sequence = isinstance(i, dict) and i.get('sequence', None)
+        " end segwit "
+
         if isinstance(i, dict) and "outpoint" in i:
             txobj["ins"].append(i)
         else:
@@ -452,8 +538,11 @@ def mktx(*args, **kwargs):
             txobj["ins"].append({
                 "outpoint": {"hash": i[:64], "index": int(i[65:])},
                 "script": "",
-                "sequence": 4294967295
+                "sequence": 4294967295 if not sequence and sequence != 0 else sequence
             })
+        if seg_input:
+            txobj["ins"][-1].update({'txinwitness': []})
+
     for o in outs:
         if isinstance(o, string_or_bytes_types):
             addr = o[:o.find(':')]
@@ -464,7 +553,6 @@ def mktx(*args, **kwargs):
             else:
                 o["address"] = addr
             o["value"] = val
-
         outobj = {}
         if "address" in o:
             outobj["script"] = address_to_script(o["address"])
@@ -474,8 +562,7 @@ def mktx(*args, **kwargs):
             raise Exception("Could not find 'address' or 'script' in output.")
         outobj["value"] = o["value"]
         txobj["outs"].append(outobj)
-
-    return serialize(txobj)
+    return txobj if not ser else serialize(txobj)
 
 
 def select(unspent, value):
