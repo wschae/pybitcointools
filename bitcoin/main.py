@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from secp256k1 import PrivateKey
+
 from .py2specials import *
 from .py3specials import *
 import binascii
@@ -11,6 +13,7 @@ import time
 import random
 import hmac
 from bitcoin.ripemd import *
+
 
 # Elliptic curve parameters (secp256k1)
 
@@ -502,8 +505,11 @@ def deterministic_generate_k(msghash, priv):
     return decode(hmac.new(k, v, hashlib.sha256).digest(), 256)
 
 
-def ecdsa_raw_sign(msghash, priv):
-
+def DEPRECATED_ecdsa_raw_sign(msghash, priv):
+    """
+    !! FIXME !!
+    remove once the refactory with libsecp256k1 is done
+    """
     z = hash_to_int(msghash)
     k = deterministic_generate_k(msghash, priv)
 
@@ -580,3 +586,18 @@ def ecdsa_recover(msg, sig):
     v,r,s = decode_sig(sig)
     Q = ecdsa_raw_recover(electrum_sig_hash(msg), (v,r,s))
     return encode_pubkey(Q, 'hex_compressed') if v >= 31 else encode_pubkey(Q, 'hex')
+
+
+"""
+Use libsecp256k1 python bindings, from here
+"""
+
+def ecdsa_raw_sign(msghash, priv):
+    key = PrivateKey(binascii.unhexlify(priv))
+    sig_check = key.ecdsa_sign_recoverable(msghash, raw=True)
+    secp256k1_sig = key.ecdsa_recoverable_serialize(sig_check)
+    v = secp256k1_sig[1] + 27
+    if 'compressed' in get_privkey_format(priv):
+        v += 4
+    r, s = hash_to_int(secp256k1_sig[0][:32]), hash_to_int(secp256k1_sig[0][32:])
+    return long(v), r, s

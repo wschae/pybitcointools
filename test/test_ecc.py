@@ -13,6 +13,17 @@ class TestECCArithmetic(unittest.TestCase):
     def setUpClass(cls):
         print('Starting ECC arithmetic tests')
 
+    def test_ecdsa_der_encoded(self):
+        vectors = json.load(open('./data/secp256k1-py_ecdsa_test_vectors.json', 'r')).get('vectors')
+        for vector in vectors:
+            key = vector['privkey']
+            msg = binascii.unhexlify(vector['msg'])
+            recoverable = ecdsa_raw_sign(msg, key)
+            deprecated = DEPRECATED_ecdsa_raw_sign(msg, key)
+            self.assertEqual(deprecated, recoverable)
+            res = der_encode_sig(*recoverable) + '01'
+            self.assertEqual(vector['sig'], res)
+
     def test_all(self):
         for i in range(8):
             print('### Round %d' % (i+1))
@@ -173,6 +184,7 @@ class TestTransaction(unittest.TestCase):
         mscript = mk_multisig_script(pubs[1:], 2, 3)
         msigaddr = p2sh_scriptaddr(mscript)
         tx = mktx(['01'*32+':1', '23'*32+':2'], [msigaddr+':20202', addresses[0]+':40404'], locktime=2222222222)
+
         tx1 = sign(tx, 1, privs[0])
 
         self.assertEqual(deserialize(tx)['locktime'], 2222222222, "Locktime incorrect")
