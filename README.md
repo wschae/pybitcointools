@@ -12,11 +12,22 @@
 * Electrum and BIP0032 support
 * Make and publish a transaction all in a single command line instruction
 * Includes non-bitcoin-specific conversion and JSON utilities
+* Experimental Segregated Witness support
 
 ### Disadvantages:
 
 * Not a full node, has no idea what blocks are
 * Relies on centralized service (blockchain.info) for blockchain operations, although operations do have backups (eligius, blockr.io)
+
+### TO DO:
+
+* Official Bitcoincore secp256k1 library support for ECC signature\verification
+* BIP141-142-143 support (segwit)
+* Easy handling of the major transactions patterns (Colored Coins, Payment Channels)
+* Block awareness and validation
+* P2P protocol
+* ZeroMQ interface
+
 
 ### Example usage (best way to learn :) ):
 
