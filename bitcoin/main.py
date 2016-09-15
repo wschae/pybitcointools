@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from secp256k1 import PrivateKey
+import secp256k1
 
 from .py2specials import *
 from .py3specials import *
@@ -514,11 +514,8 @@ def deterministic_generate_k(msghash, priv):
     return decode(hmac.new(k, v, hashlib.sha256).digest(), 256)
 
 
-def DEPRECATED_ecdsa_raw_sign(msghash, priv):
-    """
-    !! FIXME !!
-    remove once the refactory with libsecp256k1 is done
-    """
+def ecdsa_raw_sign(msghash, priv):
+    raise ValueError() # you shall not pass
     z = hash_to_int(msghash)
     k = deterministic_generate_k(msghash, priv)
 
@@ -596,12 +593,11 @@ def ecdsa_recover(msg, sig):
     Q = ecdsa_raw_recover(electrum_sig_hash(msg), (v,r,s))
     return encode_pubkey(Q, 'hex_compressed') if v >= 31 else encode_pubkey(Q, 'hex')
 
-"""
-Use libsecp256k1 python bindings, from here
-"""
+
+# override with libsecp256k1
 
 def ecdsa_raw_sign(msghash, priv):
-    key = PrivateKey(encode_privkey(priv, 'bin'))
+    key = secp256k1.PrivateKey(encode_privkey(priv, 'bin'))
     msghash = safe_from_hex(msghash) if is_hex(msghash) else msghash
     sig_check = key.ecdsa_sign_recoverable(msghash, raw=True)
     secp256k1_sig = key.ecdsa_recoverable_serialize(sig_check)
@@ -610,3 +606,4 @@ def ecdsa_raw_sign(msghash, priv):
         v += 4
     r, s = hash_to_int(secp256k1_sig[0][:32]), hash_to_int(secp256k1_sig[0][32:])
     return long(v), r, s
+

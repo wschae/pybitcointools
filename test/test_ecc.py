@@ -1,6 +1,9 @@
 import unittest
 from bitcoin import *
 
+def get_current_path():
+    return '{}'.format(__file__)[:-'{}'.format(__file__)[::-1].find('/')]
+
 class TestECCArithmetic(unittest.TestCase):
 
     @classmethod
@@ -8,13 +11,10 @@ class TestECCArithmetic(unittest.TestCase):
         print('Starting ECC arithmetic tests')
 
     def test_ecdsa_der_encoded(self):
-        vectors = json.load(open('./data/secp256k1-py_ecdsa_test_vectors.json', 'r')).get('vectors')
+        vectors = json.load(open('{}data/secp256k1-py_ecdsa_test_vectors.json'.format(get_current_path()),
+                                 'r')).get('vectors')
         for vector in vectors:
-            key = vector['privkey']
-            msg = binascii.unhexlify(vector['msg'])
-            recoverable = ecdsa_raw_sign(msg, key)
-            deprecated = DEPRECATED_ecdsa_raw_sign(msg, key)
-            self.assertEqual(deprecated, recoverable)
+            recoverable = ecdsa_raw_sign(vector['msg'], vector['privkey'])
             res = der_encode_sig(*recoverable) + '01'
             self.assertEqual(vector['sig'], res)
 
