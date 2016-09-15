@@ -1,9 +1,6 @@
 # Pybitcointools, Python library for Bitcoin signatures and transactions
 
-###
-
-Tests: 
-$ python -m unittest test
+[![Build Status](https://travis-ci.org/Conio/pybitcointools.svg?branch=master)](https://travis-ci.org/Conio/pybitcointools)
 
 ### Advantages:
 
@@ -15,11 +12,22 @@ $ python -m unittest test
 * Electrum and BIP0032 support
 * Make and publish a transaction all in a single command line instruction
 * Includes non-bitcoin-specific conversion and JSON utilities
+* Experimental Segregated Witness support
 
 ### Disadvantages:
 
 * Not a full node, has no idea what blocks are
 * Relies on centralized service (blockchain.info) for blockchain operations, although operations do have backups (eligius, blockr.io)
+
+### TO DO:
+
+* Official Bitcoincore secp256k1 library support for ECC signature\verification
+* BIP141-142-143 support (segwit)
+* Easy handling of the major transactions patterns (Colored Coins, Payment Channels)
+* Block awareness and validation
+* P2P protocol
+* ZeroMQ interface
+
 
 ### Example usage (best way to learn :) ):
 
@@ -131,7 +139,7 @@ Fun stuff with json:
 * multisign            : (tx, i, script, privkey) -> signature
 * apply_multisignatures: (tx, i, script, sigs) -> tx with index i signed with sigs
 * scriptaddr           : (script) -> P2SH address
-* mk_multisig_script   : (pubkeys, k) -> k-of-n multisig script from pubkeys
+* mk_multisig_script   : (pubkeys, k, n) -> k-of-n multisig script from pubkeys
 * verify_tx_input      : (tx, i, script, sig, pub) -> True/False
 * tx_hash              : (hex or bin tx) -> hash
 
