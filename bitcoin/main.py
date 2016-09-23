@@ -6,7 +6,6 @@ from .py3specials import *
 import binascii
 import hashlib
 import re
-import sys
 import os
 import base64
 import time
@@ -96,75 +95,7 @@ def sum(obj):
 def isinf(p):
     return p[0] == 0 and p[1] == 0
 
-
-def to_jacobian(p):
-    o = (p[0], p[1], 1)
-    return o
-
-
-def jacobian_double(p):
-    if not p[1]:
-        return (0, 0, 0)
-    ysq = (p[1] ** 2) % P
-    S = (4 * p[0] * ysq) % P
-    M = (3 * p[0] ** 2 + A * p[2] ** 4) % P
-    nx = (M**2 - 2 * S) % P
-    ny = (M * (S - nx) - 8 * ysq ** 2) % P
-    nz = (2 * p[1] * p[2]) % P
-    return (nx, ny, nz)
-
-
-def jacobian_add(p, q):
-    if not p[1]:
-        return q
-    if not q[1]:
-        return p
-    U1 = (p[0] * q[2] ** 2) % P
-    U2 = (q[0] * p[2] ** 2) % P
-    S1 = (p[1] * q[2] ** 3) % P
-    S2 = (q[1] * p[2] ** 3) % P
-    if U1 == U2:
-        if S1 != S2:
-            return (0, 0, 1)
-        return jacobian_double(p)
-    H = U2 - U1
-    R = S2 - S1
-    H2 = (H * H) % P
-    H3 = (H * H2) % P
-    U1H2 = (U1 * H2) % P
-    nx = (R ** 2 - H3 - 2 * U1H2) % P
-    ny = (R * (U1H2 - nx) - S1 * H3) % P
-    nz = (H * p[2] * q[2]) % P
-    return (nx, ny, nz)
-
-
-def from_jacobian(p):
-    z = inv(p[2], P)
-    return ((p[0] * z**2) % P, (p[1] * z**3) % P)
-
-
-def jacobian_multiply(a, n):
-    if a[1] == 0 or n == 0:
-        return (0, 0, 1)
-    if n == 1:
-        return a
-    if n < 0 or n >= N:
-        return jacobian_multiply(a, n % N)
-    if (n % 2) == 0:
-        return jacobian_double(jacobian_multiply(a, n//2))
-    if (n % 2) == 1:
-        return jacobian_add(jacobian_double(jacobian_multiply(a, n//2)), a)
-
-
-def fast_multiply(a, n):
-    return from_jacobian(jacobian_multiply(to_jacobian(a), n))
-
-
-def fast_add(a, b):
-    return from_jacobian(jacobian_add(to_jacobian(a), to_jacobian(b)))
-
 # Functions for handling pubkey and privkey formats
-
 
 def get_pubkey_format(pub):
     if is_python2:
@@ -257,10 +188,6 @@ def decode_privkey(priv,formt=None):
         return decode(b58check_to_bin(priv)[:32],256)
     else: raise Exception("WIF does not represent privkey")
 
-def add_pubkeys(p1, p2):
-    f1, f2 = get_pubkey_format(p1), get_pubkey_format(p2)
-    return encode_pubkey(fast_add(decode_pubkey(p1, f1), decode_pubkey(p2, f2)), f1)
-
 def add_privkeys(p1, p2):
     f1, f2 = get_privkey_format(p1), get_privkey_format(p2)
     return encode_privkey((decode_privkey(p1, f1) + decode_privkey(p2, f2)) % N, f1)
@@ -268,14 +195,6 @@ def add_privkeys(p1, p2):
 def mul_privkeys(p1, p2):
     f1, f2 = get_privkey_format(p1), get_privkey_format(p2)
     return encode_privkey((decode_privkey(p1, f1) * decode_privkey(p2, f2)) % N, f1)
-
-def multiply(pubkey, privkey):
-    f1, f2 = get_pubkey_format(pubkey), get_privkey_format(privkey)
-    pubkey, privkey = decode_pubkey(pubkey, f1), decode_privkey(privkey, f2)
-    # http://safecurves.cr.yp.to/twist.html
-    if not isinf(pubkey) and (pubkey[0]**3+B-pubkey[1]*pubkey[1]) % P != 0:
-        raise Exception("Point not on curve")
-    return encode_pubkey(fast_multiply(pubkey, privkey), f1)
 
 
 def divide(pubkey, privkey):
@@ -299,18 +218,6 @@ def decompress(pubkey):
         return encode_pubkey(decode_pubkey(pubkey, f), 'hex')
 
 
-def privkey_to_pubkey(privkey):
-    f = get_privkey_format(privkey)
-    privkey = decode_privkey(privkey, f)
-    if privkey >= N:
-        raise Exception("Invalid privkey")
-    if f in ['bin', 'bin_compressed', 'hex', 'hex_compressed', 'decimal']:
-        return encode_pubkey(fast_multiply(G, privkey), f)
-    else:
-        return encode_pubkey(fast_multiply(G, privkey), f.replace('wif', 'hex'))
-
-privtopub = privkey_to_pubkey
-
 
 def privkey_to_address(priv, magicbyte=0):
     return pubkey_to_address(privkey_to_pubkey(priv), magicbyte)
@@ -328,11 +235,6 @@ def neg_privkey(privkey):
     privkey = decode_privkey(privkey, f)
     return encode_privkey((N - privkey) % N, f)
 
-def subtract_pubkeys(p1, p2):
-    f1, f2 = get_pubkey_format(p1), get_pubkey_format(p2)
-    k2 = decode_pubkey(p2, f2)
-    return encode_pubkey(fast_add(decode_pubkey(p1, f1), (k2[0], (P - k2[1]) % P)), f1)
-
 
 def subtract_privkeys(p1, p2):
     f1, f2 = get_privkey_format(p1), get_privkey_format(p2)
@@ -344,7 +246,6 @@ def subtract_privkeys(p1, p2):
 
 def bin_hash160(string):
     intermed = hashlib.sha256(string).digest()
-    digest = ''
     try:
         digest = hashlib.new('ripemd160', intermed).digest()
     except:
@@ -514,41 +415,12 @@ def deterministic_generate_k(msghash, priv):
     return decode(hmac.new(k, v, hashlib.sha256).digest(), 256)
 
 
-def ecdsa_raw_sign(msghash, priv):
-    raise ValueError() # you shall not pass
-    z = hash_to_int(msghash)
-    k = deterministic_generate_k(msghash, priv)
-
-    r, y = fast_multiply(G, k)
-    s = inv(k, N) * (z + r*decode_privkey(priv)) % N
-
-    v, r, s = 27+((y % 2) ^ (0 if s * 2 < N else 1)), r, s if s * 2 < N else N - s
-    if 'compressed' in get_privkey_format(priv):
-        v += 4
-    return v, r, s
-
-
 def ecdsa_sign(msg, priv):
     v, r, s = ecdsa_raw_sign(electrum_sig_hash(msg), priv)
     sig = encode_sig(v, r, s)
     assert ecdsa_verify(msg, sig, 
         privtopub(priv)), "Bad Sig!\t %s\nv = %d\n,r = %d\ns = %d" % (sig, v, r, s)
     return sig
-
-
-def ecdsa_raw_verify(msghash, vrs, pub):
-    vr, r, vs, s = vrs
-    if not (27 <= vr <= 34):
-        return False
-    if not (27 <= vs <= 34):
-        return False
-
-    w = inv(s, N)
-    z = hash_to_int(msghash)
-
-    u1, u2 = z*w % N, r*w % N
-    x, y = fast_add(fast_multiply(G, u1), fast_multiply(decode_pubkey(pub), u2))
-    return bool(r == x and (r % N) and (s % N))
 
 
 # For BitcoinCore, (msg = addr or msg = "") be default
@@ -565,36 +437,40 @@ def ecdsa_verify(msg, sig, pub):
     return ecdsa_raw_verify(electrum_sig_hash(msg), decode_sig(sig), pub)
 
 
-def ecdsa_raw_recover(msghash, vrs):
-    v, r, s = vrs
-
-    x = r
-    xcubedaxb = (x*x*x+A*x+B) % P
-    beta = pow(xcubedaxb, (P+1)//4, P)
-    y = beta if v % 2 ^ beta % 2 else (P - beta)
-    # If xcubedaxb is not a quadratic residue, then r cannot be the x coord
-    # for a point on the curve, and so the sig is invalid
-    if (xcubedaxb - y*y) % P != 0 or not (r % N) or not (s % N):
-        return False
-    z = hash_to_int(msghash)
-    Gz = jacobian_multiply((Gx, Gy, 1), (N - z) % N)
-    XY = jacobian_multiply((x, y, 1), s)
-    Qr = jacobian_add(Gz, XY)
-    Q = jacobian_multiply(Qr, inv(r, N))
-    Q = from_jacobian(Q)
-
-    # if ecdsa_raw_verify(msghash, vrs, Q):
-    return Q
-    # return False
-
-
 def ecdsa_recover(msg, sig):
     v,r,s = decode_sig(sig)
     Q = ecdsa_raw_recover(electrum_sig_hash(msg), (v,r,s))
     return encode_pubkey(Q, 'hex_compressed') if v >= 31 else encode_pubkey(Q, 'hex')
 
 
-# override with libsecp256k1
+def der_encode_sig(v, r, s):
+    b1, b2 = safe_hexlify(encode(r, 256)), safe_hexlify(encode(s, 256))
+    if len(b1) and b1[0] in '89abcdef':
+        b1 = '00' + b1
+    if len(b2) and b2[0] in '89abcdef':
+        b2 = '00' + b2
+    left = '02'+encode(len(b1)//2, 16, 2)+b1
+    right = '02'+encode(len(b2)//2, 16, 2)+b2
+    return '30'+encode(len(left+right)//2, 16, 2)+left+right
+
+
+def der_decode_sig(sig):
+    leftlenbytes = decode(sig[6:8], 16)
+    leftlen = leftlenbytes*2
+    left = sig[8:8+leftlen]
+    rightlenbytes = decode(sig[10+leftlen:12+leftlen], 16)
+    rightlen = rightlenbytes*2
+    right = sig[12+leftlen:12+leftlen+rightlen]
+    return (leftlenbytes, decode(left, 16), rightlenbytes, decode(right, 16))
+
+
+def _normalize_vrs(vrs):
+    v, r, s = vrs
+    v = v - 27 if v > 3 else v
+    if not (0 <= v < 3):
+        raise ValueError('invalid rec_id: {}'.format(v))
+    return v, r, s
+
 
 def ecdsa_raw_sign(msghash, priv):
     key = secp256k1.PrivateKey(encode_privkey(priv, 'bin'))
@@ -607,3 +483,66 @@ def ecdsa_raw_sign(msghash, priv):
     r, s = hash_to_int(secp256k1_sig[0][:32]), hash_to_int(secp256k1_sig[0][32:])
     return long(v), r, s
 
+
+def ecdsa_raw_verify(msghash, vrs, pub):
+    vr, r, vs, s = vrs
+    if not (27 <= vr <= 34):
+        return False
+    if not (27 <= vs <= 34):
+        return False
+    key = secp256k1.PublicKey(pubkey=encode_pubkey(pub, 'bin'), raw=True)
+    sig_bytes = safe_from_hex(der_encode_sig(None, r, s))
+    try:
+        raw_sig = key.ecdsa_deserialize(sig_bytes)
+    except AssertionError as e:
+        raise e
+    msghash = safe_from_hex(msghash) if is_hex(msghash) else msghash
+    return key.ecdsa_verify(msghash, raw_sig, raw=True)
+
+
+def ecdsa_raw_recover(msghash, vrs):
+    v, r, s = _normalize_vrs(vrs)
+    p = secp256k1.PublicKey(flags=secp256k1.ALL_FLAGS)
+    msghash = safe_from_hex(msghash) if is_hex(msghash) else msghash
+    sig = encode(r, 256) + encode(s, 256)
+    recoverable = p.ecdsa_recoverable_deserialize(sig, rec_id=v)
+    pubkey = p.ecdsa_recover(msghash, recoverable, raw=True)
+    ser_pubkey = secp256k1.PublicKey(pubkey).serialize()
+    return decode_pubkey(ser_pubkey)
+
+
+def privkey_to_pubkey(privkey):
+    key = secp256k1.PrivateKey(encode_privkey(privkey, 'bin'))
+    pubkey = key.pubkey.serialize()
+    return encode_pubkey(pubkey, get_privkey_format(privkey))
+privtopub = privkey_to_pubkey
+
+
+def add_pubkeys(p1, p2):
+    fmt = get_pubkey_format(p1) # the first key rules
+    keys = [secp256k1.PublicKey(encode_pubkey(p1, 'bin'), raw=True).public_key,
+            secp256k1.PublicKey(encode_pubkey(p2, 'bin'), raw=True).public_key]
+    new = secp256k1.PublicKey()
+    new.combine(keys)
+    return encode_pubkey(new.serialize(), fmt)
+
+
+def multiply(pubkey, privkey):
+    fmt = get_pubkey_format(pubkey)
+    pub = secp256k1.PublicKey(encode_pubkey(pubkey, 'bin'), raw=True)
+    priv = secp256k1.PrivateKey(encode_privkey(privkey, 'bin'), raw=True)
+    mul = pub.tweak_mul(safe_from_hex(priv.serialize())).serialize()
+    return encode_pubkey(mul, fmt)
+
+
+def subtract_pubkeys(p1, p2):
+    if p1 == p2:
+        return b'\x02' + b'\x00' *32
+    fmt = get_pubkey_format(p1)
+    d = decode_pubkey(p2, get_pubkey_format(p2))
+    p2 = (d[0], (P - d[1]) % P)
+    k1 = secp256k1.PublicKey(encode_pubkey(p1, 'bin'), raw=True).public_key
+    k2 = secp256k1.PublicKey(encode_pubkey(p2, 'bin'), raw=True).public_key
+    new = secp256k1.PublicKey()
+    new.combine([k1, k2])
+    return encode_pubkey(new.serialize(), fmt)

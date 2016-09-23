@@ -1,9 +1,8 @@
 #!/usr/bin/python
-from _functools import reduce
 
 import copy
+
 from bitcoin.main import *
-### Hex to bin converter and vice versa for objects
 
 
 def json_is_base(obj, base):
@@ -198,25 +197,6 @@ def encode_num(n):
     else:
         return '00' + h
 
-def der_encode_sig(v, r, s):
-    b1, b2 = safe_hexlify(encode(r, 256)), safe_hexlify(encode(s, 256))
-    if len(b1) and b1[0] in '89abcdef':
-        b1 = '00' + b1
-    if len(b2) and b2[0] in '89abcdef':
-        b2 = '00' + b2
-    left = '02'+encode(len(b1)//2, 16, 2)+b1
-    right = '02'+encode(len(b2)//2, 16, 2)+b2
-    return '30'+encode(len(left+right)//2, 16, 2)+left+right
-
-def der_decode_sig(sig):
-    leftlenbytes = decode(sig[6:8], 16)
-    leftlen = leftlenbytes*2
-    left = sig[8:8+leftlen]
-    rightlenbytes = decode(sig[10+leftlen:12+leftlen], 16)
-    rightlen = rightlenbytes*2
-    right = sig[12+leftlen:12+leftlen+rightlen]
-    return (leftlenbytes, decode(left, 16), rightlenbytes, decode(right, 16))
-
 def is_bip66(sig):
     """Checks hex DER sig for BIP66 consistency"""
     #https://raw.githubusercontent.com/bitcoin/bips/master/bip-0066.mediawiki
@@ -259,7 +239,7 @@ def bin_txhash(tx, hashcode=None):
 
 def ecdsa_tx_sign(tx, priv, hashcode=SIGHASH_ALL):
     rawsig = ecdsa_raw_sign(bin_txhash(tx, hashcode), priv)
-    return der_encode_sig(*rawsig)+encode(hashcode, 16, 2)
+    return der_encode_sig(*rawsig) + encode(hashcode, 16, 2)
 
 
 def ecdsa_tx_verify(tx, sig, pub, hashcode=SIGHASH_ALL):

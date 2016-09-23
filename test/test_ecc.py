@@ -1,5 +1,8 @@
 import unittest
+
 from bitcoin import *
+from bitcoin.main import der_encode_sig
+
 
 def get_current_path():
     return '{}'.format(__file__)[:-'{}'.format(__file__)[::-1].find('/')]
@@ -113,11 +116,11 @@ class TestRawSignRecover(unittest.TestCase):
     def test_all(self):
         for i in range(20):
             k = sha256(str(i))
-            s = ecdsa_raw_sign('35' * 32, k)
-            self.assertEqual(
-                ecdsa_raw_recover('35' * 32, s),
-                decode_pubkey(privtopub(k))
-            )
+            m = '35' * 32
+            s = ecdsa_raw_sign(m, k)
+            r = ecdsa_raw_recover(m, s)
+            p = decode_pubkey(privtopub(k))
+            self.assertEqual(r, p)
 
 
 class TestTransactionSignVerify(unittest.TestCase):

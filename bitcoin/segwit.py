@@ -4,8 +4,9 @@ import re
 import struct
 from bitcoin import changebase, is_python2, privkey_to_pubkey, pubkey_to_address, ecdsa_raw_sign, encode, \
     SIGHASH_ALL, SIGHASH_ANYONECANPAY, SIGHASH_SINGLE, SIGHASH_NONE, \
-    deserialize, txhash, serialize, sign, mk_pubkey_script, der_encode_sig, serialize_script, \
+    deserialize, txhash, serialize, sign, mk_pubkey_script, serialize_script, \
     deserialize_script
+from bitcoin.main import der_encode_sig
 
 
 def get_hashcode_strategy(hashcode):
