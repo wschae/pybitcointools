@@ -117,6 +117,13 @@ def bip32_deserialize(data):
     key = dbin[46:78]+b'\x01' if vbytes in PRIVATE else dbin[45:78]
     return (vbytes, depth, fingerprint, i, chaincode, key)
 
+def bip32_chaincode(key):
+    """
+    accept only base58encoded keys, return hex
+    """
+    d = bip32_deserialize(key)
+    return safe_hexlify(d[4])
+
 
 def raw_bip32_privtopub(rawtuple):
     vbytes, depth, fingerprint, i, chaincode, key = rawtuple
@@ -139,6 +146,13 @@ def bip32_master_key(seed, vbytes=MAINNET_PRIVATE):
 
 def bip32_bin_extract_key(data):
     return bip32_deserialize(data)[-1]
+
+
+def bip32_b58check_to_bin(key, strip_checksum=True):
+    dbin = changebase(key, 58, 256)
+    if bin_dbl_sha256(dbin[:-4])[:4] != dbin[-4:]:
+        raise Exception("Invalid checksum")
+    return dbin[:-4] if strip_checksum else dbin
 
 
 def bip32_extract_key(data):
@@ -197,3 +211,20 @@ def bip32_descend(*args):
     for p in path:
         key = bip32_ckd(key, p)
     return bip32_extract_key(key)
+
+
+def bip44_follow_path(masterkey, path):
+    def _get_path_int(x):
+        b = 0
+        if "'" in x:
+            x = x.replace("'", "")
+            b += 2 ** 31
+        b += int(x)
+        return b
+
+    ele = path.split('/')
+    assert ele[0] == 'm'
+    for e in ele[1:]:
+        masterkey = bip32_ckd(masterkey, _get_path_int(e))
+    else:
+        return masterkey

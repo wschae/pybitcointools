@@ -555,7 +555,6 @@ def ecdsa_verify(msg, sig, pub):
 
 def ecdsa_raw_recover(msghash, vrs):
     v, r, s = vrs
-
     x = r
     xcubedaxb = (x*x*x+A*x+B) % P
     beta = pow(xcubedaxb, (P+1)//4, P)
