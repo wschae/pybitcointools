@@ -12,7 +12,7 @@
 * Electrum and BIP0032 support
 * Make and publish a transaction all in a single command line instruction
 * Includes non-bitcoin-specific conversion and JSON utilities
-* Experimental Segregated Witness support
+* BIP143 Segregated Witness support
 
 ### Disadvantages:
 
@@ -22,7 +22,6 @@
 ### TO DO:
 
 * Official Bitcoincore secp256k1 library support for ECC signature\verification
-* BIP141-142-143 support (segwit)
 * Easy handling of the major transactions patterns (Colored Coins, Payment Channels)
 * Block awareness and validation
 * P2P protocol
