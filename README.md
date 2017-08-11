@@ -13,6 +13,7 @@
 * Make and publish a transaction all in a single command line instruction
 * Includes non-bitcoin-specific conversion and JSON utilities
 * BIP143 Segregated Witness support
+* BitcoinCash SIGHASH_FORKDID support - block #478559 (00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148) 8MB Fork
 
 ### Disadvantages:
 

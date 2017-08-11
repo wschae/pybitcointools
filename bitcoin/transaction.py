@@ -116,17 +116,11 @@ def serialize(txobj):
         json_changedbase = json_changebase(txobj, lambda x: binascii.unhexlify(x))
         return str(binascii.hexlify(serialize(json_changedbase)).decode())
     o.append(encode(txobj["version"], 256, 4)[::-1])
-
-    " begin segwit "
     segwit = txobj.get('segwit', False)
-    " end segwit "
-
     o.append(num_to_var_int(len(txobj["ins"])))
     for inp in txobj["ins"]:
         inp['script'] = inp.get('script', '')
-        " begin segwit "
         segwit = bool(inp.get("txinwitness") != None) if not segwit else segwit
-        " end segwit "
         o.append(inp["outpoint"]["hash"][::-1])
         o.append(encode(inp["outpoint"]["index"], 256, 4)[::-1])
         out_len = num_to_var_int(len(inp["script"]))
@@ -138,8 +132,6 @@ def serialize(txobj):
         out['script'] = out['script']
         o.append(encode(out["value"], 256, 8)[::-1])
         o.append(num_to_var_int(len(out["script"]))+out["script"])
-
-    " begin segwit "
     if segwit:
         o.insert(1, SEGWIT_MARKER + SEGWIT_FLAG)
         for inp in txobj["ins"]:
@@ -155,9 +147,6 @@ def serialize(txobj):
                 else:
                     o.append(num_to_var_int(2))
                     o.append(num_to_var_int(0) * 2)
-
-    " end segwit "
-
     o.append(encode(txobj["locktime"], 256, 4)[::-1])
     return b''.join(o)
 

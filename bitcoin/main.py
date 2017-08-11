@@ -21,6 +21,9 @@ SIGHASH_SINGLE = 0x00000003
 # we fix the constant
 SIGHASH_ANYONECANPAY = 0x00000080
 
+# Bitcoincash 8mb blocks (BCH) Support
+SIGHASH_FORKID = 0x40
+
 
 # Elliptic curve parameters (secp256k1)
 

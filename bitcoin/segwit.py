@@ -5,7 +5,7 @@ import struct
 from bitcoin import changebase, is_python2, privkey_to_pubkey, pubkey_to_address, ecdsa_raw_sign, encode, \
     SIGHASH_ALL, SIGHASH_ANYONECANPAY, SIGHASH_SINGLE, SIGHASH_NONE, \
     deserialize, txhash, serialize, sign, mk_pubkey_script, der_encode_sig, serialize_script, \
-    deserialize_script, decode, ecdsa_raw_verify, der_decode_sig
+    deserialize_script, decode, ecdsa_raw_verify, der_decode_sig, SIGHASH_FORKID
 
 
 def get_hashcode_strategy(hashcode):
@@ -72,6 +72,7 @@ class ANYONECANPAY_STRATEGY(HashcodeStrategy):
 
 _STRATEGIES = {
     SIGHASH_ALL: SIGHASH_ALL_Strategy(),
+    SIGHASH_ALL|SIGHASH_FORKID: SIGHASH_ALL_Strategy(),
     SIGHASH_SINGLE: SIGHASH_SINGLE_Strategy(),
     SIGHASH_NONE: SIGHASH_NONE_Strategy(),
     SIGHASH_ALL|SIGHASH_ANYONECANPAY: ANYONECANPAY_STRATEGY(SIGHASH_ALL_Strategy()),
@@ -86,7 +87,7 @@ def is_segwit(tx, hashcode=None):
     return tx[4:6] == b'\x00\x01'
 
 
-def segwit_signature_form(tx, i, script, amount, hashcode=SIGHASH_ALL):
+def segwit_signature_form(tx, i, script, amount, hashcode=SIGHASH_ALL, fork_id=None):
     d = deserialize(tx)
 
     def parse_vout(o):
@@ -108,7 +109,7 @@ def segwit_signature_form(tx, i, script, amount, hashcode=SIGHASH_ALL):
     hash_outputs = hashlib.sha256(hashlib.sha256(b''.join(outputs)).digest()).digest() if outputs_to_sign else b'\x00'*32
     hash_sequences = hashlib.sha256(hashlib.sha256(b''.join(sequences)).digest()).digest() if sequences else b'\x00'*32
     hash_outpoints = hashlib.sha256(hashlib.sha256(b''.join(outpoints)).digest()).digest() if outpoints else b'\x00'*32
-
+    hashcode = fork_id != None and (int(fork_id) | hashcode) or hashcode
     preimage = [struct.pack('<I', d['version']),
                 hash_outpoints,
                 hash_sequences,
@@ -154,7 +155,10 @@ def segwit_sign(tx, i, priv, amount, hashcode=SIGHASH_ALL, script=None, separato
     signing_tx = segwit_signature_form(tx, i, stripped_script, amount, hashcode=hashcode)
     rawsig = ecdsa_raw_sign(hashlib.sha256(hashlib.sha256(binascii.unhexlify(signing_tx)).digest()).hexdigest(), priv)
     sig = der_encode_sig(*rawsig)+encode(hashcode, 16, 2)
-    txobj['ins'][i]['txinwitness'] = [sig, pub if not script else script]
+    if (hashcode & SIGHASH_FORKID):
+        txobj['ins'][i]['script'] = serialize_script([sig, pub if not script else script])
+    else:
+        txobj['ins'][i]['txinwitness'] = [sig, pub if not script else script]
     return serialize(txobj)
 
 
@@ -168,7 +172,7 @@ def apply_multisignatures(*args):
     sigs = [binascii.unhexlify(x) if x[:2] == '30' else x for x in sigs]
     if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
         signed_tx = apply_multisignatures(binascii.unhexlify(tx), i, script, sigs)
-        return binascii.hexlify(signed_tx)
+        return binascii.hexlify(signed_tx).decode()
 
     # Not pushing empty elements on the top of the stack if passing no
     # script (in case of bare multisig inputs there is no script)
@@ -214,8 +218,8 @@ def segwit_strip_script_separator(script, index=0):
 def segwit_multisign(tx, i, script, pk, amount, hashcode=SIGHASH_ALL, separator_index=None):
     wscript = segwit_strip_script_separator(script, index=separator_index)
     signing_tx = segwit_signature_form(tx, i, wscript, amount, hashcode=hashcode)
-    rawsig = ecdsa_raw_sign(hashlib.sha256(hashlib.sha256(
-        binascii.unhexlify(signing_tx)).digest()).hexdigest(), pk)
+    hashed_signing_tx = hashlib.sha256(hashlib.sha256(binascii.unhexlify(signing_tx)).digest()).hexdigest()
+    rawsig = ecdsa_raw_sign(hashed_signing_tx, pk)
     sig = der_encode_sig(*rawsig)+encode(hashcode, 16, 2)
     return sig
 
