@@ -5,7 +5,7 @@ import struct
 from bitcoin import changebase, is_python2, privkey_to_pubkey, pubkey_to_address, ecdsa_raw_sign, encode, \
     SIGHASH_ALL, SIGHASH_ANYONECANPAY, SIGHASH_SINGLE, SIGHASH_NONE, \
     deserialize, txhash, serialize, sign, mk_pubkey_script, der_encode_sig, serialize_script, \
-    deserialize_script
+    deserialize_script, decode, ecdsa_raw_verify, der_decode_sig
 
 
 def get_hashcode_strategy(hashcode):
@@ -220,15 +220,8 @@ def segwit_multisign(tx, i, script, pk, amount, hashcode=SIGHASH_ALL, separator_
     return sig
 
 
-def segwit_ecdsa_verify(tx, *keys):
-    """
-    TODO: Rebuild SEGWIT signature form and apply non-consensus dependant ECC verification (avoid scripts evaluation, just checks signatures)
-    """
-    pass
-
-
-def segwit_extract_signature_form(signed_tx):
-    """
-    TODO: Extract the signature form from a signed transaction, to apply the verification (evaluate SIGHASH_TYPE byte)
-    """
-    pass
+def segwit_verify_tx_input(tx, i, script, sig, pub, amount):
+    hashcode = decode(sig[-2:], 16)
+    signing_tx = segwit_signature_form(tx, int(i), script, amount, hashcode=hashcode)
+    hashed_signing_tx = hashlib.sha256(hashlib.sha256(binascii.unhexlify(signing_tx)).digest()).hexdigest()
+    return ecdsa_raw_verify(hashed_signing_tx, der_decode_sig(sig), pub)
