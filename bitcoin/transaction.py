@@ -287,8 +287,8 @@ def mk_scripthash_script(addr):
 # Address representation to output script
 
 
-def address_to_script(addr):
-    if addr[0] == '3' or addr[0] == '2':
+def address_to_script(addr, multisig_prefixes=('3', '2')):
+    if addr[0] in multisig_prefixes:
         return mk_scripthash_script(addr)
     else:
         return mk_pubkey_script(addr)
@@ -512,7 +512,7 @@ def is_inp(arg):
     return len(arg) > 64 or "output" in arg or "outpoint" in arg
 
 
-def mktx(*args, **kwargs):
+def mktx(*args, multisig_prefixes=('2', '3'), **kwargs):
     # [in0, in1...],[out0, out1...] or in0, in1 ... out0 out1 ...
     ser = kwargs.get('serialize', True)
     ins, outs = [], []
@@ -555,7 +555,7 @@ def mktx(*args, **kwargs):
             o["value"] = val
         outobj = {}
         if "address" in o:
-            outobj["script"] = address_to_script(o["address"])
+            outobj["script"] = address_to_script(o["address"], multisig_prefixes=multisig_prefixes)
         elif "script" in o:
             outobj["script"] = o["script"]
         else:
