@@ -120,6 +120,32 @@ def bci_unspent(*args):
             })
     return u
 
+def blockinfo_unspent(*args):
+    addrs, network = parse_addr_args(*args)
+
+    if network == 'testnet':
+        blockinfo_url = 'https://testnet.blockchain.info/unspent?active='
+    else:
+        blockinfo_url = 'https://blockchain.info/unspent?active='
+
+    u = []
+    for a in addrs:
+        try:
+            data = make_request(blockinfo_url+a)
+        except Exception as e:
+            if str(e) == 'No free outputs to spend':
+                continue
+            else:
+                raise Exception(e)
+        jsonobj = json.loads(data.decode("utf-8"))
+        for o in jsonobj["unspent_outputs"]:
+            h = safe_hexlify(binascii.unhexlify(o['tx_hash'])[::-1])
+            u.append({
+                "output": h+':'+str(o['tx_output_n']),
+                "value": o['value']
+            })
+    return u
+
 
 def blockr_unspent(*args):
     # Valid input formats: blockr_unspent([addr1, addr2,addr3])
@@ -201,12 +227,19 @@ def unspent(*args, **kwargs):
 def history(*args):
     # Valid input formats: history([addr1, addr2,addr3])
     #                      history(addr1, addr2, addr3)
-    if len(args) == 0:
-        return []
-    elif isinstance(args[0], list):
-        addrs = args[0]
+    addr_args, network = parse_addr_args(*args)
+
+    if network == 'testnet':
+        blockinfo_url = 'https://testnet.blockchain.info/'
     else:
-        addrs = args
+        blockinfo_url = 'https://blockchain.info/'
+
+    if len(addr_args) == 0:
+        return []
+    elif isinstance(addr_args[0], list):
+        addrs = addr_args[0]
+    else:
+        addrs = addr_args
 
     txs = []
     for addr in addrs:
@@ -216,7 +249,7 @@ def history(*args):
             while not gathered:
                 try:
                     data = make_request(
-                        'https://blockchain.info/address/%s?format=json&offset=%s' %
+                        blockinfo_url + 'address/%s?format=json&offset=%s' %
                         (addr, offset))
                     gathered = True
                 except Exception as e:
@@ -262,6 +295,10 @@ def bci_pushtx(tx):
         tx = tx.encode('hex')
     return make_request('https://blockchain.info/pushtx', 'tx='+tx)
 
+def testnet_pushtx(tx):
+    if not re.match('^[0-9a-fA-F]*$', tx):
+        tx = tx.encode('hex')
+    return make_request('https://testnet.blockchain.info/pushtx', 'tx='+tx)
 
 def eligius_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
@@ -328,6 +365,13 @@ def bci_fetchtx(txhash):
     data = make_request('https://blockchain.info/rawtx/'+txhash+'?format=hex')
     return data
 
+def testnet_fetchtx(txhash):
+    if isinstance(txhash, list):
+        return [testnet_fetchtx(h) for h in txhash]
+    if not re.match('^[0-9a-fA-F]*$', txhash):
+        txhash = txhash.encode('hex')
+    data = make_request('https://testnet.blockchain.info/rawtx/'+txhash+'?format=hex')
+    return data
 
 def blockr_fetchtx(txhash, network='btc'):
     if network == 'testnet':
