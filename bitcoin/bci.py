@@ -3,6 +3,7 @@ import json, re
 import random
 import sys
 import binascii
+import requests
 from bitcoin import safe_hexlify
 
 try:
@@ -298,7 +299,13 @@ def bci_pushtx(tx):
 def testnet_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
-    return make_request('https://testnet.blockchain.info/pushtx', 'tx='+tx)
+
+    # see https://www.blockcypher.com/dev/bitcoin/#introduction
+    url = 'https://api.blockcypher.com/v1/btc/test3/txs/push'
+    
+    # blockchain.info doesn't support testnet
+    # return make_request('https://testnet.blockchain.info/pushtx', 'tx='+tx)    
+    return requests.post(url, json = {'tx':tx})
 
 def eligius_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
